@@ -1,0 +1,7 @@
+{
+  "name": "Scan&Brand",
+  "description": "",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
