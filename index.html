@@ -11,7 +11,7 @@
           extend: {
             colors: {
               primary: '#0a0a0a',
-              black: '#0a0a0a', // Override default black
+              black: '#0a0a0a',
               secondary: '#525252',
               dark: '#ffffff', 
               card: '#f4f4f5', 
@@ -32,21 +32,28 @@
         background-color: #ffffff;
         color: #0a0a0a;
         font-weight: 300;
+        margin: 0;
+      }
+      #root {
+        min-height: 100vh;
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0"
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "@google/genai": "https://esm.sh/@google/genai@1.30.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.460.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
   }
 }
 </script>
 </head>
   <body>
     <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
   </body>
 </html>

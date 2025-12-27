@@ -1,3 +1,4 @@
+
 import React, { useRef } from 'react';
 import { Upload } from 'lucide-react';
 
@@ -8,26 +9,23 @@ interface ImageInputProps {
 export const ImageInput: React.FC<ImageInputProps> = ({ onImageSelected }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Optimize image for AI processing (Resize & Compress)
   const generateOptimizedPayload = (file: File): Promise<{base64: string, mimeType: string}> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Failed to read file"));
       reader.onload = (event) => {
         const img = new Image();
+        img.onerror = () => reject(new Error("Failed to load image"));
         img.onload = () => {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
           
-          // SPEED OPTIMIZATION: Aggressive Compression for AI Payload
-          // We limit the dimension to 480px. This is sufficient for Gemini 3 Pro
-          // to identify fashion items but results in a significantly smaller payload
-          // than 640px or 1024px, reducing upload and processing latency.
-          const maxDim = 480; 
-          
-          // Quality 0.5 (50%) is enough for computer vision analysis (shapes/logos)
-          // but keeps file size extremely low for speed.
-          const quality = 0.5;
+          // Refined optimization: 
+          // 800px is the sweet spot for Gemini to see small logos clearly.
+          // Lower quality (0.4) in WebP keeps the file size extremely small.
+          const maxDim = 800; 
+          const quality = 0.4;
 
           if (width > height && width > maxDim) {
             height = (height * maxDim) / width;
@@ -39,18 +37,22 @@ export const ImageInput: React.FC<ImageInputProps> = ({ onImageSelected }) => {
 
           canvas.width = width;
           canvas.height = height;
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext('2d', { alpha: false }); // Disable alpha for better optimization
           if (ctx) {
+            // Fill white background just in case of transparency
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
-            // Use WebP for superior compression
+            
             const mimeType = 'image/webp';
             const dataUrl = canvas.toDataURL(mimeType, quality);
             const base64 = dataUrl.split(',')[1];
             resolve({ base64, mimeType });
           } else {
-            // Fallback
+            // Fallback if canvas fails
+            const result = (event.target?.result as string).split(',')[1];
             resolve({ 
-                base64: (event.target?.result as string).split(',')[1], 
+                base64: result, 
                 mimeType: file.type
             });
           }
@@ -64,18 +66,12 @@ export const ImageInput: React.FC<ImageInputProps> = ({ onImageSelected }) => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // 1. Generate High-Res Preview immediately for UI (Crisp visuals for user)
-    // This ensures the user sees the original quality image.
+    
     const highResPreview = URL.createObjectURL(file);
-
     e.target.value = '';
-
+    
     try {
-        // 2. Generate Highly Optimized Payload for AI in background (Fast analysis)
         const { base64, mimeType } = await generateOptimizedPayload(file);
-        
-        // 3. Pass High-Res Preview + Optimized Payload
         onImageSelected(base64, mimeType, highResPreview);
     } catch (error) {
         console.error("Error processing image:", error);
@@ -100,7 +96,6 @@ export const ImageInput: React.FC<ImageInputProps> = ({ onImageSelected }) => {
         onClick={triggerSelect}
         className="group relative overflow-hidden rounded-none bg-white hover:bg-gray-50 transition-all duration-500 cursor-pointer p-12 text-center"
       >
-        {/* Custom Sparse Dashed Border using SVG */}
         <div className="absolute inset-0 pointer-events-none">
             <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
                 <rect 
@@ -124,7 +119,7 @@ export const ImageInput: React.FC<ImageInputProps> = ({ onImageSelected }) => {
           <div>
             <h3 className="text-xl font-sans font-medium text-black mb-2">Upload Image</h3>
             <p className="text-sm text-gray-500 font-normal">
-              Take a photo or select from gallery
+              Capture a photo or select from gallery
             </p>
           </div>
         </div>
