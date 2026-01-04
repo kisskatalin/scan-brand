@@ -20,6 +20,11 @@ RULES FOR BRANDING AND CONFIDENCE:
    - **HIGH**: 80-94% Certainty. Strong visual evidence.
    - **LOW**: Use when the brand is "Unknown".
 
+DESCRIPTION PRECISION RULE:
+- ONLY provide an exact, detailed product description if you are 100% certain of the item's identity and source (Perfect Match).
+- If you are NOT certain, provide only a generic visual description (e.g., "A basic black cotton t-shirt" instead of a specific designer name/model).
+- DO NOT invent details about materials or origins if the source is not verified.
+
 PROCESS:
 1. VISUAL INVENTORY: Identify colors, materials, and cut.
 2. SEARCH: Generate specific search queries to identify the brand.
