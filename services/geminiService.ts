@@ -1,12 +1,12 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { AnalysisResult, FashionItem } from "../types";
 
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Using Gemini 3 Flash as the requested "Flash" tier with thinking capabilities
-const MODEL_NAME = "gemini-3-flash-preview";
+// Using Gemini 3.1 Pro Preview for advanced reasoning and visual identification
+const MODEL_NAME = "gemini-3.1-pro-preview";
 
 const SYSTEM_INSTRUCTION = "Role: Fashion Detective. Task: Identify clothing items using Google Search. Priority: Authentic sources (Getty Images, Vogue, Red Carpet Fashion Awards, WornOnTV, brand archives). Only focus on fashion items. If identification is unsuccessful, return 'Unknown'.";
 
@@ -25,14 +25,23 @@ DESCRIPTION PRECISION RULE:
 - If you are NOT certain, provide only a generic visual description (e.g., "A basic black cotton t-shirt" instead of a specific designer name/model).
 - DO NOT invent details about materials or origins if the source is not verified.
 
+IMAGE URL QUALITY RULE (STRICT):
+- For 'Perfect' matches, provide a direct image URL ONLY if it points to the specific product image.
+- CRITICAL: DO NOT provide URLs that point to "unavailable", "placeholder", "not-found", "broken", "404", "no-image", "default", or "image-coming-soon" graphics.
+- VERIFICATION: Before providing a URL, ensure it looks like a real product asset (e.g., ending in .jpg, .webp, .png) and is from a reputable retail or editorial domain (e.g., nike.com, farfetch.com, vogue.com).
+- If you find any placeholder text in the URL or the source page, leave the imageUrl field empty.
+
 PROCESS:
 1. VISUAL INVENTORY: Identify colors, materials, and cut.
 2. SEARCH: Generate specific search queries to identify the brand.
 3. CONFIRMATION: Find the exact product.
-4. IMAGE: For 'Perfect' matches ONLY, and ONLY if the item is a specific clothing or accessory product, provide a clear product image or high-quality editorial image URL. Do NOT provide images for 'High', 'Medium', or 'Low' confidence matches.
+4. IMAGE: For 'Perfect' matches ONLY, and ONLY if the item is a specific clothing or accessory product (e.g., shoes, dress, jacket, bag, jewelry, watch), provide a clear, high-quality image URL. 
+   - CRITICAL: The image MUST be a product photo (e.g., on a white background or a clear studio shot). 
+   - DO NOT provide images of logos, generic brand banners, or lifestyle shots where the item is not the primary focus.
 
 RESPONSE: RAW JSON format.
-Structure: { items: [{ category, brand, confidence, description, materials, imageUrl, shoppingQuery }], styleSummary }`;
+Structure: { items: [{ category, brand, confidence, description, materials, imageUrl, shoppingQuery, box_2d: [ymin, xmin, ymax, xmax] }], styleSummary }
+COORDINATES: For each item, provide a bounding box [ymin, xmin, ymax, xmax] with values normalized from 0 to 1000. These will be used to place a marker on the item in the image.`;
 
 async function generateWithModel(model: string, base64Image: string, mimeType: string) {
     const response = await ai.models.generateContent({
@@ -47,8 +56,8 @@ async function generateWithModel(model: string, base64Image: string, mimeType: s
             tools: [{ googleSearch: {} }],
             systemInstruction: SYSTEM_INSTRUCTION,
             temperature: 0.1, 
-            thinkingConfig: { thinkingBudget: 24576 }, // Maximized thinking budget for Flash tier
-            maxOutputTokens: 8192,
+            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }, // Use high reasoning for Pro
+            maxOutputTokens: 16384,
         },
     });
     return response;
@@ -111,7 +120,8 @@ function processResponse(response: any): AnalysisResult {
                     description: item.description || "",
                     materials: materials,
                     imageUrl: item.imageUrl || undefined,
-                    shoppingQuery: item.shoppingQuery || ""
+                    shoppingQuery: item.shoppingQuery || "",
+                    box_2d: Array.isArray(item.box_2d) && item.box_2d.length === 4 ? item.box_2d : undefined
                 } as FashionItem;
             });
         }

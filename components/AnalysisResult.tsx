@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { AnalysisResult as ResultType } from '../types';
+import { sortFashionItems } from '../utils/fashionUtils';
 import { Check, AlertTriangle, Star } from 'lucide-react';
 import { LogoIcon } from './LogoIcon';
 
@@ -11,7 +12,10 @@ interface AnalysisResultProps {
 const ImageWithFallback = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
+    
+    // If runtime loading fails, hide completely
     if (error) return null;
+    
     return (
         <img 
             src={src} 
@@ -24,26 +28,7 @@ const ImageWithFallback = ({ src, alt, className }: { src: string, alt: string, 
 };
 
 export const AnalysisResult: React.FC<AnalysisResultProps> = ({ result }) => {
-  const sortedItems = [...result.items].sort((a, b) => {
-    // Map confidence levels to scores for sorting (case-insensitive)
-    const scores: Record<string, number> = { 'perfect': 4, 'high': 3, 'medium': 2, 'low': 1 };
-    
-    const getScore = (confidence: string) => scores[(confidence || '').toLowerCase()] || 0;
-    
-    const scoreA = getScore(a.confidence);
-    const scoreB = getScore(b.confidence);
-    
-    if (scoreA !== scoreB) return scoreB - scoreA;
-    
-    // Secondary sort: Generic items go to bottom
-    const isGeneric = (str: string) => {
-        const s = (str || '').toLowerCase();
-        return s.includes('unknown') || s.includes('unidentified') || s.includes('generic') || s === 'n/a' || s.includes('ismeretlen');
-    };
-    if (isGeneric(a.brand) && !isGeneric(b.brand)) return 1;
-    if (!isGeneric(a.brand) && isGeneric(b.brand)) return -1;
-    return 0;
-  });
+  const sortedItems = sortFashionItems(result.items);
 
   const getConfidenceText = (conf: string) => {
     const c = (conf || '').toLowerCase();
@@ -53,12 +38,37 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({ result }) => {
     return 'Low';
   };
 
-  // Logic to determine if an item is a clothing/accessory item
-  const isFashionCategory = (category: string) => {
+  const isStrictFashionItem = (category: string) => {
     const c = category.toLowerCase();
-    // Exclude non-fashion categories that might accidentally slip in from general search results
-    const exclusions = ['person', 'human', 'background', 'scenery', 'room', 'furniture', 'architecture', 'car', 'landscape'];
-    return !exclusions.some(exc => c.includes(exc));
+    const fashionKeywords = [
+        'shoe', 'sneaker', 'boot', 'footwear', 'clothing', 'apparel', 'dress', 'top', 
+        'shirt', 't-shirt', 'jacket', 'coat', 'outerwear', 'pant', 'jean', 'skirt', 
+        'suit', 'knitwear', 'accessory', 'bag', 'handbag', 'watch', 'jewelry', 'hat', 'cap',
+        'blouse', 'sweater', 'hoodie', 'shorts', 'trousers', 'blazer', 'cardigan', 'scarf', 
+        'belt', 'sunglasses', 'earrings', 'necklace', 'bracelet', 'ring', 'pumps', 'heels',
+        'sandals', 'loafers', 'oxfords', 'clutch', 'wallet', 'purse'
+    ];
+    const exclusions = [
+        'logo', 'brand', 'person', 'human', 'background', 'scenery', 'room', 
+        'furniture', 'architecture', 'car', 'landscape', 'decor', 'nature'
+    ];
+    const hasFashionKeyword = fashionKeywords.some(kw => c.includes(kw));
+    const hasExclusion = exclusions.some(exc => c.includes(exc));
+    return hasFashionKeyword && !hasExclusion;
+  };
+
+  const isValidImageUrl = (url?: string) => {
+    if (!url) return false;
+    const lowerUrl = url.toLowerCase();
+    
+    // Thorough list of phrases suggesting a placeholder or broken image link
+    const invalidPatterns = [
+        'unavailable', 'placeholder', 'not-found', 'broken-image', 'image_not_available',
+        'no-image', 'stock-photo', '404', 'default-image', 'missing', 'img_not_found',
+        'coming-soon', 'null', 'undefined', 'spacer.gif', 'transparent.png'
+    ];
+    
+    return !invalidPatterns.some(pattern => lowerUrl.includes(pattern));
   };
 
   return (
@@ -76,7 +86,7 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({ result }) => {
         </p>
       </div>
 
-      <div className="space-y-4 pb-6 mt-2">
+      <div className="space-y-4 pb-6 mt-8">
         <h3 className="text-xl font-sans font-normal text-gray-400 px-1">
           Identified Pieces
         </h3>
@@ -84,11 +94,12 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({ result }) => {
         {sortedItems.map((item, index) => {
           const isPerfectMatch = (item.confidence || '').toLowerCase() === 'perfect';
           const isHighConfidence = (item.confidence || '').toLowerCase() === 'high';
-          const isFashion = isFashionCategory(item.category);
-          // Only show preview if it's a perfect match AND it's a clothing/accessory item
-          const showPreview = isPerfectMatch && isFashion && item.imageUrl;
+          const isFashion = isStrictFashionItem(item.category);
+          const validImage = isValidImageUrl(item.imageUrl);
           
-          // Filter out empty materials to avoid rendering empty section
+          // Only show preview if it's a perfect match AND it's a strictly defined fashion item AND URL is valid
+          const showPreview = isPerfectMatch && isFashion && validImage;
+          
           const validMaterials = item.materials?.filter(m => m && m.trim().length > 0) || [];
 
           return (
@@ -104,9 +115,14 @@ export const AnalysisResult: React.FC<AnalysisResultProps> = ({ result }) => {
                     <div className="flex-1">
                         <div className="flex justify-between items-start gap-4 mb-3">
                              <div className="flex-1">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-3">
-                                    {item.category}
-                                </span>
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-6 h-6 flex items-center justify-center bg-black text-white text-[10px] font-bold rounded-full shrink-0">
+                                        {index + 1}
+                                    </div>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block">
+                                        {item.category}
+                                    </span>
+                                </div>
                                 <h4 className="text-2xl font-sans font-bold text-black leading-tight">
                                     {item.brand || 'Unknown Brand'}
                                 </h4>

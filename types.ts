@@ -8,6 +8,7 @@ export interface FashionItem {
   shoppingQuery: string; 
   citations?: string[];
   imageUrl?: string;
+  box_2d?: [number, number, number, number];
 }
 
 export interface AnalysisResult {

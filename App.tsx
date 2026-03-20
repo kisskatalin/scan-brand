@@ -4,7 +4,9 @@ import { Header } from './components/Header';
 import { ImageInput } from './components/ImageInput';
 import { AnalysisResult } from './components/AnalysisResult';
 import { LoadingOverlay } from './components/LoadingOverlay';
+import { ImageMarker } from './components/ImageMarker';
 import { analyzeFashionImage } from './services/geminiService';
+import { sortFashionItems } from './utils/fashionUtils';
 import { AnalysisResult as ResultType, ImageFile } from './types';
 import { RefreshCcw, X, AlertTriangle } from 'lucide-react';
 import { LogoIcon } from './components/LogoIcon';
@@ -114,6 +116,10 @@ const App: React.FC = () => {
                 alt="Uploaded analysis" 
                 className="w-auto h-auto max-h-[60vh] max-w-full object-contain"
               />
+              
+              {analysisResult && !isLoading && (
+                <ImageMarker items={sortFashionItems(analysisResult.items)} />
+              )}
               
               {isLoading && <LoadingOverlay progress={Math.floor(progress)} showDelayedMessage={isDelayed} />}
               
