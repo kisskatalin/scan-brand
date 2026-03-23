@@ -15,7 +15,14 @@ export const ImageInput: React.FC<ImageInputProps> = ({ onImageSelected }) => {
       reader.onerror = () => reject(new Error("Failed to read file"));
       reader.onload = (event) => {
         const img = new Image();
-        img.onerror = () => reject(new Error("Failed to load image"));
+        img.onerror = () => {
+          // Fallback to original base64 if image fails to load in browser (e.g., HEIC format)
+          const result = (event.target?.result as string).split(',')[1];
+          resolve({ 
+              base64: result, 
+              mimeType: file.type
+          });
+        };
         img.onload = () => {
           const canvas = document.createElement('canvas');
           let width = img.width;

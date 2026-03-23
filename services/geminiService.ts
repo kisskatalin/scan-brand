@@ -44,6 +44,17 @@ Structure: { items: [{ category, brand, confidence, description, materials, imag
 COORDINATES: For each item, provide a bounding box [ymin, xmin, ymax, xmax] with values normalized from 0 to 1000. These will be used to place a marker on the item in the image.`;
 
 async function generateWithModel(model: string, base64Image: string, mimeType: string) {
+    const config: any = {
+        tools: [{ googleSearch: {} }],
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 0.1, 
+        maxOutputTokens: model.startsWith("gemini-3") ? 16384 : 8192,
+    };
+
+    if (model.startsWith("gemini-3")) {
+        config.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+    }
+
     const response = await ai.models.generateContent({
         model: model,
         contents: {
@@ -52,13 +63,7 @@ async function generateWithModel(model: string, base64Image: string, mimeType: s
                 { text: PROMPT_TEXT },
             ],
         },
-        config: {
-            tools: [{ googleSearch: {} }],
-            systemInstruction: SYSTEM_INSTRUCTION,
-            temperature: 0.1, 
-            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }, // Use high reasoning for Pro
-            maxOutputTokens: 16384,
-        },
+        config: config,
     });
     return response;
 }
@@ -136,9 +141,25 @@ function processResponse(response: any): AnalysisResult {
 
 export const analyzeFashionImage = async (base64Image: string, mimeType: string): Promise<AnalysisResult> => {
   try {
-    const response = await generateWithModel(MODEL_NAME, base64Image, mimeType);
+    const proPromise = generateWithModel(MODEL_NAME, base64Image, mimeType);
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error("TIMEOUT")), 60000)
+    );
+
+    const response = await Promise.race([proPromise, timeoutPromise]);
     return processResponse(response);
   } catch (error: any) {
+    if (error.message === "TIMEOUT") {
+      console.log("Pro model timed out after 60s, falling back to Flash 2.5...");
+      try {
+        const fallbackResponse = await generateWithModel("gemini-2.5-flash", base64Image, mimeType);
+        return processResponse(fallbackResponse);
+      } catch (fallbackError: any) {
+        if (fallbackError.message && (fallbackError.message.includes("No clothing") || fallbackError.message.includes("detected"))) throw fallbackError;
+        throw new Error(fallbackError.message || "The analysis is currently unavailable.");
+      }
+    }
+
     if (error.message && (error.message.includes("No clothing") || error.message.includes("detected"))) throw error;
     throw new Error(error.message || "The analysis is currently unavailable.");
   }
